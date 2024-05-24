@@ -1,0 +1,435 @@
+```{r}
+
+
+### Loading the data set 
+
+heart_data <- read.csv("heart.csv")
+head(heart_data)
+
+```
+
+```{r}
+# # Import libraries
+library(dplyr)
+library(tidyr)
+library(readr) 
+library(caret)
+library(ggplot2)
+library(gplots)
+library(GGally)
+
+```
+
+
+```{r}
+# Getting the dimensions of the dataframe
+dim(heart_data)
+
+```
+
+
+```{r}
+# Getting summary statistics for the dataframe
+summary(heart_data)
+
+```
+
+```{r}
+# Getting information about the dataframe
+str(heart_data)
+
+```
+
+
+```{r}
+# Count missing values in each column
+colSums(is.na(heart_data))
+
+```
+
+
+```{r}
+# Visualizing the distribution of the target variable
+ggplot(heart_data, aes(x = target)) +
+geom_bar(fill = "blue", color = "black", stat = "count") +
+labs(title = "Distribution of Target Variable", x = "Target", y = "Frequency")
+
+```
+
+
+
+```{r}
+ # We can observe from this plot that the number of instances of patients with heart disease is slightly more than those without heart disease.
+```
+
+
+```{r}
+# Creating two separate plots for heart disease and no heart disease
+ggplot(heart_data, aes(x = age, fill = factor(target))) +
+geom_histogram(binwidth = 4, position = "dodge", color = 'grey') +
+scale_fill_manual(values = c("0" = "blue", "1" = "red"), 
+                  labels = c("No Disease", "Disease")) +
+facet_wrap(~target, scales = "free_y") 
+
+```
+
+```{r}
+# We can observe that around 124 patients in the age of 50-60 had no heart diseases while around 100 patients in the age of 50-60 were suffering from heart diseases. This shows there is higher count of people without heart disease in ages of 50-60 in our dataset.
+```
+
+
+
+```{r}
+# Next we will try to find a relation between gender and heart diseases
+# Visualizing the relationship between gender and heart disease
+ggplot(heart_data, aes(x = factor(sex), fill = factor(target))) + geom_bar() +
+labs(title = "Distribution of Gender by Heart Disease Status",
+     x = "Gender (0 = Female, 1 = Male)", y = "Frequency") +
+scale_fill_manual(values = c("0" = "blue", "1" = "red"), 
+                  labels = c("No Disease", "Disease"))
+
+
+
+```
+
+```{r}
+# This visualization shows that the proportion of males with heart disease is much higher than females with heart disease showing a relation between gender and heart disease.
+
+
+```
+
+
+
+```{r}
+# Correlation matrix Visualization
+#Finally, we use a correlation matrix to assess the relationships between the features. This matrix is a powerful tool for summarizing a large dataset, offering insights into patterns and potential dependencies among variables.
+```
+
+
+```{r}
+# Correlation matrix
+ggcorr(heart_data, label = TRUE, label_size = 2.5, hjust = 1, layout.exp = 2)
+
+```
+
+```{r}
+# The variables “slope”, “thalach” and “cp” have a positive correlation with the target variable so these must be having strong relation with heart disease. On the other hand, the variable “fbs” has 0 correlation indicating it doesn’t have any relationship with our target variable.
+```
+
+```{r}
+# Data Encoding
+# Exploratory Data Analysis reveals that certain factors like gender, type of chest pain, fasting blood sugar level, etc. are categorical variables and are not suitable for model training. We will encode these variables into “factor” data type in R for organized and improved understanding of this information. This encoding allows for efficient handling of categorical variables in statistical models and data analysis.
+
+
+```
+
+
+```{r}
+# Data Encoding
+heart <- heart_data %>%
+  mutate(sex = as.factor(sex),
+         cp = as.factor(cp),
+         fbs = as.factor(fbs),
+         restecg = as.factor(restecg),
+         exang = as.factor(exang),
+         slope = as.factor(slope),
+         ca = as.factor(ca),
+         thal = as.factor(thal),
+         target = as.factor(target))
+
+# Checking the structure of the dataset
+str(heart)
+
+```
+
+
+
+
+
+
+```{r}
+#Normalization and Data Splitting
+#Firstly we will select the features with higher relation with our target variable. Then we shall perform data normalization for stable and faster training of Logistic Regression model. After that, we split our dataset into two subsets. The initial subset, constituting 80% of the data, is employed to train the model, while the remaining 20% of the data is reserved for prediction purposes.
+```
+
+
+```{r}
+# Feature selection
+features <- heart_data[, c('age', 'sex',  'cp', 'trestbps', 'chol', 'restecg', 'thalach', 
+                   'exang', 'oldpeak', 'slope', 'ca', 'thal')]
+target <- heart_data$target
+
+# Data normalization
+preprocessParams <- preProcess(features, method = c("center", "scale"))
+features_normalized <- predict(preprocessParams, features)
+
+# Splitting the data
+split <- createDataPartition(target, p = 0.8, list = FALSE)
+X_train <- features_normalized[split, ]
+X_test <- features_normalized[-split, ]
+Y_train <- target[split]
+Y_test <- target[-split]
+
+# Print the shape of the training and test sets
+print(paste("X_train shape:", paste(dim(X_train), collapse = "x")))
+print(paste("X_test shape:", paste(dim(X_test), collapse = "x")))
+
+```
+
+```{r}
+# Now that we have our data normalized and split into train and test sets, we are ready to train the Logistic Regression model on this data.
+```
+
+
+```{r}
+# Combine features and target into a single data frame
+train_data <- as.data.frame(cbind(target = Y_train, X_train))
+
+# Training the logistic regression model
+model <- glm(target ~ ., data = train_data, family = "binomial")
+
+```
+
+
+```{r}
+#Model Evaluation
+#After the model training is complete we can the predictions generated by Logistic Regression model on the test dataset. First we generate the probabilistic prediction by the Logistic Regression model and then we assign a threshold of 0.5 to further categorize these predictions into binary target classes.
+```
+
+
+```{r}
+# Making predictions on the test set
+predictions <- predict(model, newdata = as.data.frame(X_test), type = "response")
+
+# Converting probabilities to binary predictions based on threshold 0.5
+binary_predictions <- ifelse(predictions >= 0.5, 1, 0)
+
+# Combining actual values and predicted values into a data frame
+result <- data.frame(actual = Y_test, predicted = binary_predictions)
+
+# Evaluating the model
+confusionMatrix(data = as.factor(binary_predictions), reference = as.factor(Y_test), 
+                   positive = "1")
+
+```
+```{r}
+#Here we have the model performance using evaluation metrics such as Accuracy, Confusion Matrix, Cohen’s Kappa statistic, Sensitivity, etc. All these metrics help us in evaluating the performance of Logistic Regression on the heart disease dataset.
+
+#Here we can clearly see that our Logistic Regression model has achieved an accuracy of 86.83% on the given dataset.
+
+#Next we will also plot our confusion matrix to visualize the actual values against the predicted values.
+```
+
+
+```{r}
+# Create a confusion matrix
+conf_matrix <- table(factor(binary_predictions, levels = c("0", "1")), 
+                     factor(Y_test, levels = c("0", "1")))
+
+# Set the dimension names of the confusion matrix
+dimnames(conf_matrix) <- list(Actual = c("0", "1"), Predicted = c("0", "1"))
+
+# Plot the fourfold plot with color and main title
+fourfoldplot(conf_matrix, color = c("blue", "red"), main = "Confusion Matrix")
+
+```
+
+
+
+```{r}
+# Now we will predict the new values from our model
+
+# Assuming you have a test dataset named 'test_data' with the same features the training
+# Combine features and target into a single data frame for the test set
+test_data <- as.data.frame(cbind(target = Y_test, X_test))
+
+# Making predictions on the test set
+predictions <- predict(model, newdata = as.data.frame(test_data[, -1]),type ="response")
+
+# Converting probabilities to binary predictions based on threshold 0.5
+binary_predictions <- ifelse(predictions >= 0.5, 1, 0)
+
+# Combining actual values and predicted values into a data frame
+result <- data.frame(actual = test_data$target, predicted = binary_predictions)
+
+# Displaying the results
+print(result)
+
+```
+
+```{r}
+#As a prevalent disease today, predicting heart disease in patients is crucial for timely intervention and recovery. Logistic regression offers a valuable method to predict heart disease by analyzing patterns in patient data. This information can assist healthcare professionals in identifying high-risk patients and implementing preventive measures.
+```
+
+
+
+
+
+
+
+```{r}
+###################### Lets introduce shiny app for heart attack prediction ######################
+
+```
+
+```{r}
+library(shiny)
+library(dplyr)
+library(tidyr)
+library(readr)
+library(caret)
+library(ggplot2)
+library(gplots)
+library(GGally)
+
+# Load the dataset
+heart_data <- read.csv("heart.csv")
+
+# Preprocess the data
+heart_data <- heart_data %>%
+  mutate(sex = as.factor(sex),
+         cp = as.factor(cp),
+         fbs = as.factor(fbs),
+         restecg = as.factor(restecg),
+         exang = as.factor(exang),
+         slope = as.factor(slope),
+         ca = as.factor(ca),
+         thal = as.factor(thal),
+         target = as.factor(target))
+
+# Select features and target
+features <- heart_data[, c('age', 'sex', 'cp', 'trestbps', 'chol', 'restecg', 'thalach', 'exang', 'oldpeak', 'slope', 'ca', 'thal')]
+target <- heart_data$target
+
+# Normalize features
+preprocessParams <- preProcess(features, method = c("center", "scale"))
+features_normalized <- predict(preprocessParams, features)
+
+# Split the data into training and testing sets
+set.seed(123)
+split <- createDataPartition(target, p = 0.8, list = FALSE)
+X_train <- features_normalized[split, ]
+X_test <- features_normalized[-split, ]
+Y_train <- target[split]
+Y_test <- target[-split]
+
+# Train logistic regression model
+train_data <- as.data.frame(cbind(target = Y_train, X_train))
+model <- glm(target ~ ., data = train_data, family = "binomial")
+
+# Define UI for the app
+ui <- fluidPage(
+  titlePanel("Heart Disease Prediction Using Shiny by Kiran"),
+  
+  sidebarLayout(
+    sidebarPanel(
+      h3("Predictions"),
+      numericInput("age", "Age:", value = 50, min = 1, max = 100),
+      selectInput("sex", "Sex:", choices = c("Female" = 0, "Male" = 1)),
+      selectInput("cp", "Chest Pain Type:", choices = 0:3),
+      numericInput("trestbps", "Resting Blood Pressure:", value = 120, min = 1, max = 300),
+      numericInput("chol", "Cholesterol:", value = 200, min = 1, max = 600),
+      selectInput("restecg", "Resting ECG:", choices = 0:2),
+      numericInput("thalach", "Max Heart Rate Achieved:", value = 150, min = 1, max = 250),
+      selectInput("exang", "Exercise Induced Angina:", choices = c("No" = 0, "Yes" = 1)),
+      numericInput("oldpeak", "ST Depression:", value = 1.0, min = 0, max = 10),
+      selectInput("slope", "Slope of Peak Exercise ST Segment:", choices = 0:2),
+      numericInput("ca", "Number of Major Vessels Colored:", value = 0, min = 0, max = 3),
+      selectInput("thal", "Thalassemia:", choices = 0:3),
+      actionButton("predict", "Predict")
+    ),
+    
+    mainPanel(
+      tabsetPanel(
+        tabPanel("Introduction", 
+                 h3("Hello everyone. I am Kiran and I welcome you to the Heart Disease Prediction App"),
+                 p("This Shiny app allows you to predict the likelihood of heart disease based on patient data. The model is trained on a predefined dataset and ready to use."),
+                 p("To get started:"),
+                 tags$ul(
+                   tags$li("Enter the patient's details on the left pane and click 'Predict' to see the prediction.")
+                 )
+        ),
+        tabPanel("Data", tableOutput("dataTable")),
+        tabPanel("Summary", verbatimTextOutput("dataSummary")),
+        tabPanel("Structure", verbatimTextOutput("dataStructure")),
+        tabPanel("Plot", plotOutput("targetPlot")),
+        tabPanel("Model", verbatimTextOutput("modelSummary")),
+        tabPanel("Prediction", verbatimTextOutput("predictionResult"))
+      )
+    )
+  )
+)
+
+# Define server logic
+server <- function(input, output, session) {
+  
+  # Display the first few rows of the dataset
+  output$dataTable <- renderTable({
+    head(heart_data)
+  })
+  
+  # Display the summary statistics of the dataset
+  output$dataSummary <- renderPrint({
+    summary(heart_data)
+  })
+  
+  # Display the structure of the dataset
+  output$dataStructure <- renderPrint({
+    str(heart_data)
+  })
+  
+  # Display the summary of the logistic regression model
+  output$modelSummary <- renderPrint({
+    summary(model)
+  })
+  
+  # Plot the distribution of the target variable
+  output$targetPlot <- renderPlot({
+    ggplot(heart_data, aes(x = target)) +
+      geom_bar(fill = "blue", color = "black", stat = "count") +
+      labs(title = "Distribution of Target Variable", x = "Target", y = "Frequency")
+  })
+  
+  # Make prediction when the 'Predict' button is clicked
+  observeEvent(input$predict, {
+    # Create a new data frame for prediction with the user inputs
+    new_data <- data.frame(
+      age = input$age,
+      sex = as.factor(input$sex),
+      cp = as.factor(input$cp),
+      trestbps = input$trestbps,
+      chol = input$chol,
+      restecg = as.factor(input$restecg),
+      thalach = input$thalach,
+      exang = as.factor(input$exang),
+      oldpeak = input$oldpeak,
+      slope = as.factor(input$slope),
+      ca = as.factor(input$ca),  # Ensure 'ca' is treated as factor
+      thal = as.factor(input$thal)
+    )
+    
+    # Normalize the new data
+    new_data_normalized <- predict(preprocessParams, new_data)
+    
+    # Make the prediction using the logistic regression model
+    prediction <- predict(model, new_data_normalized, type = "response")
+    binary_prediction <- ifelse(prediction >= 0.5, 1, 0)
+    
+    # Display the prediction result with an additional message
+    output$predictionResult <- renderPrint({
+      if (binary_prediction == 1) {
+        message <- " There is a chance of Heart attack as per the inputs provided. Please consult a cardiologist as soon as possible."
+      } else {
+        message <- "There is no significant chance of heart attack."
+      }
+      cat("Predicted value (0 = No Disease, 1 = Disease):", binary_prediction, "\n", message)
+    })
+  })
+}
+
+# Run the application 
+shinyApp(ui = ui, server = server)
+
+
+```
+
